@@ -3,6 +3,7 @@
 #include <strings.h>
 #include <string.h>
 #include <ctype.h>
+#include <unistd.h>
 
 int max_issue=0;
 
@@ -103,61 +104,99 @@ int show_problem_box(FILE *f,int problem_number)
 int main(int argc,char **argv)
 {
 
-  // Parse list of issues
-  // This actually only returns the 30 most recent issues.  But the first one will always
-  // be the newest, so it at least delimits what we need to search.
-  // We will heavily cache, since the ##BREAKS tags are not expected to change often.
-  // system("curl -i https://api.github.com/repos/mega65/mega65-core/issues > issues.txt");
+  // download the "issues" file from the github-api (only if has not been downloaded before)
+  if( access( "issues.txt", F_OK ) != -1 )
+  {
+    printf("Using local issues.txt\n");
+  }
+  else
+  {
+    printf("Downloading issues from github-api\n");
+    //
+    // the following will download ALL issues
+    //system("curl -i https://api.github.com/repos/mega65/mega65-core/issues?stat=all > issues.txt");
+    //
+    // the following will download only the first page of (most recent) issues
+    system("curl -i https://api.github.com/repos/mega65/mega65-core/issues > issues.txt");
+  }
+
+  // now parse the "issues" file and find the highest issue-number
   FILE *f=fopen("issues.txt","r");
   if (!f) {
     fprintf(stderr,"ERROR: Could not read issues.txt.\n");
     exit(-3);
   }
   char line[8192];
-  line[0]=0; fgets(line,1024,f);
+  line[0]=0;
+  fgets(line,1024,f);
   while(line[0]) {
+    // remove leading whitespace
     while(line[0]&&(line[0]<=' '))
       bcopy(&line[1],&line[0],strlen(line));
+    // remove trailling whitespace/CR (??)
     while(line[0]&&(line[strlen(line)-1]<' '))
       line[strlen(line)-1]=0;
-    //    printf("> '%s'\n",line);
+
+    // DEBUG
+    //printf("> '%s'\n",line);
+
+    // we want to find the first instance of "number", file looks like
+    // <snip>
+    //    "id": 607469595,
+    //    "node_id": "MDU6SXNzdWU2MDc0Njk1OTU=",
+    //    "number": 216,
+    //    "title": "Issue with RESTORE key for invoking the freeze menu",
+    //    "user": {
+    // <snip>
+
+    // the first instance of "number" in issues.txt is
+    // the highest issue-number because the issues are listed most recent to oldest(first issue created)
+    // so we just read the first line containing an issue-number and get the most recent issue number
     if (!max_issue) {
       sscanf(line,"\"number\": %d",&max_issue);
     }
 
-    
+    // read the next line
     line[0]=0; fgets(line,1024,f);
   }
 
-  fprintf(stderr,"Maximum issue number is %d\n",max_issue);
+  fprintf(stderr,"Largest issue number is %d\n",max_issue);
 
-  for(int issue=1;issue<=max_issue;issue++) {
+
+  for(int issue=1; issue<=max_issue; issue++) {
+
     char issue_file[1024];
     snprintf(issue_file,1024,"issues/issue%d.txt",issue);
     FILE *isf=fopen(issue_file,"r");
+
     if (isf) {
+      // file exists, but we need to check its valid
       char line[1024]; line[0]=0;
       fgets(line,1024,isf);
+      // remove trailling whitespace/CR
       while(line[0]&&(line[strlen(line)-1]<' '))
-	line[strlen(line)-1]=0;
+        line[strlen(line)-1]=0;
+      //
       if (strcmp(line,"HTTP/1.1 200 OK")) {
-	// Ignore files that didn't fetch correctly.
-	fclose(isf);
-	isf=NULL;
+        // Ignore files that didn't fetch correctly.
+        fclose(isf);
+        isf=NULL;
+        fprintf(stderr,"First line of '%s' does not match HTTP/1.1 200 OK, -> '%s'\n",issue_file, line);
       }
     }
+
     if (!isf) {
       // Need to refetch it
       fprintf(stderr,"Can't open '%s' -- refetching.\n",issue_file);
       fprintf(stderr,"curl -i https://api.github.com/repos/mega65/mega65-core/issues/%d > %s\n",
-	      issue,issue_file);
+        issue,issue_file);
       char cmd[1024];
       snprintf(cmd,1024,"curl -i https://api.github.com/repos/mega65/mega65-core/issues/%d > %s\n",
-	      issue,issue_file);
+        issue,issue_file);
       system(cmd);
       isf=fopen(issue_file,"r");
       if (!isf) {
-	fprintf(stderr,"WARNING: Could not fetch issue #%d\n",issue);
+        fprintf(stderr,"WARNING: Could not fetch issue #%d\n",issue);
       }
     }
 
@@ -171,35 +210,38 @@ int main(int argc,char **argv)
       char line[8192];
       line[0]=0; fgets(line,8192,isf);
       while(line[0]) {
-	while(line[0]&&(line[0]<=' '))
-	  bcopy(&line[1],&line[0],strlen(line));
-	while(line[0]&&(line[strlen(line)-1]<' '))
-	  line[strlen(line)-1]=0;
-	//	    printf("> '%s'\n",line);
-	sscanf(line,"\"number\": %d",&issue_num);
-	if (!strncmp("\"title\": ",line,9)) {
-	  parse_string(&line[10],title);
-	}
-	if (!strncmp("\"body\": ",line,8)) {
-	  parse_string(&line[9],body);
-	}
+        // skip whitespace
+        while(line[0]&&(line[0]<=' '))
+          bcopy(&line[1],&line[0],strlen(line));
+        while(line[0]&&(line[strlen(line)-1]<' '))
+          line[strlen(line)-1]=0;
+        //printf("> '%s'\n",line);
+        sscanf(line,"\"number\": %d",&issue_num);
+        if (!strncmp("\"title\": ",line,9)) {
+          parse_string(&line[10],title);
+        }
+        if (!strncmp("\"body\": ",line,8)) {
+          parse_string(&line[9],body);
+        }
 
-	line[0]=0; fgets(line,8192,isf);       
+        line[0]=0; fgets(line,8192,isf);
       }
-      
+
       fclose(isf);
 
+      // DEBUG only
       if (0) printf("Issue #%d:\ntitle = %s\nbody = %s\n",
-		    issue_num,title,body);
+        issue_num,title,body);
+
       int problem_count=0;
       for (int i=0;body[i];i++) {
-	if (!strncmp("\r##BREAKS ",&body[i],10)) {
-	  register_breaks(issue_num,title,&body[i+10]);
-	  problem_count++;
-	}
+        if (!strncmp("\r##BREAKS ",&body[i],10)) {
+          register_breaks(issue_num,title,&body[i+10]);
+           problem_count++;
+        }
       }
       // If no specific problems were registered, then we just need to log the whole
-      // issue
+      // issue for now
       if (!problem_count)
         register_breaks(issue_num,title,"Unspecified problem. Please add \\#\\#BREAKS tags via github issue");
     }
@@ -208,8 +250,10 @@ int main(int argc,char **argv)
   // Ok, now we have the set of issues and things that the issues broke, so that we can annotate the
   // test procedure document.
 
+  return 0;
+
   FILE *of=fopen("testprocedure.tex","w");
-  FILE *inf=fopen("testprocedure_in.tex","r");
+  FILE *inf=fopen("test_procedure_in.tex","r");
   if (!of||!inf) {
     fprintf(stderr,"ERROR: Could not open testprocedure.tex or testprocedure_in.tex\n");
     exit(-1);
