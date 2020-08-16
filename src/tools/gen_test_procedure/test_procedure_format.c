@@ -101,6 +101,10 @@ int show_problem_box(FILE *f,int problem_number)
   return 0;
 }
 
+// ======== ======== ======== ========
+// ======== ======== ======== ========
+// ======== ======== ======== ========
+
 int main(int argc,char **argv)
 {
 
@@ -162,7 +166,17 @@ int main(int argc,char **argv)
 
   fprintf(stderr,"Largest issue number is %d\n",max_issue);
 
+  // ======== ======== ======== ========
+  // ======== ======== ======== ========
+  // ======== ======== ======== ========
 
+
+  // Now, iterate through issues and:
+  // - download if nessessary
+  // - parse the file and pull out important info (ie description and first-post)
+  // - check for the existence of ##BREAKS (special tag to indicate how/what to test)
+  //
+  // using "200..max_issue" results in at least two ##BREAKS (issue 206 and 215)
   for(int issue=1; issue<=max_issue; issue++) {
 
     char issue_file[1024];
@@ -177,8 +191,9 @@ int main(int argc,char **argv)
       while(line[0]&&(line[strlen(line)-1]<' '))
         line[strlen(line)-1]=0;
       //
-      if (strcmp(line,"HTTP/1.1 200 OK")) {
-        // Ignore files that didn't fetch correctly.
+      if ( strcmp(line,"HTTP/1.1 200 OK") != 0 ) {
+        // Close files that didn't fetch correctly (possibly due to rate-limit),
+        // and the file will be re-fetched below
         fclose(isf);
         isf=NULL;
         fprintf(stderr,"First line of '%s' does not match HTTP/1.1 200 OK, -> '%s'\n",issue_file, line);
@@ -187,7 +202,7 @@ int main(int argc,char **argv)
 
     if (!isf) {
       // Need to refetch it
-      fprintf(stderr,"Can't open '%s' -- refetching.\n",issue_file);
+      fprintf(stderr,"Can't open '%s' (or detected previous rate-limit) -- refetching.\n",issue_file);
       fprintf(stderr,"curl -i https://api.github.com/repos/mega65/mega65-core/issues/%d > %s\n",
         issue,issue_file);
       char cmd[1024];
@@ -209,48 +224,76 @@ int main(int argc,char **argv)
       
       char line[8192];
       line[0]=0; fgets(line,8192,isf);
+
       while(line[0]) {
         // skip whitespace
         while(line[0]&&(line[0]<=' '))
           bcopy(&line[1],&line[0],strlen(line));
+        // remove trailling whitespace/CR
         while(line[0]&&(line[strlen(line)-1]<' '))
           line[strlen(line)-1]=0;
+        //
+        // DEBUG
         //printf("> '%s'\n",line);
+        //
+        // compare every LINE and when a match is found, gets the issue-number
         sscanf(line,"\"number\": %d",&issue_num);
+        //
+        // compare every LINE (upto the Xth char) and when a match, parse the remainder of the LINE
         if (!strncmp("\"title\": ",line,9)) {
+          //DEBUG only
+          //fprintf(stderr,"getting TITLE from '%s' 0..9\n",line);
           parse_string(&line[10],title);
         }
+        // compare every LINE (upto the Xth char) and when a match, parse the remainder of the LINE
         if (!strncmp("\"body\": ",line,8)) {
+          //DEBUG only
+          //fprintf(stderr,"getting BODY from '%s' 0..8\n",line);
           parse_string(&line[9],body);
         }
-
+        //
         line[0]=0; fgets(line,8192,isf);
       }
 
       fclose(isf);
 
       // DEBUG only
-      if (0) printf("Issue #%d:\ntitle = %s\nbody = %s\n",
+      if (1) printf("Issue #%d:\ntitle = %s\nbody = %s\n",
         issue_num,title,body);
+      //
+      // DEBUG only
+      if (1) {
+        printf("\n");
+        printf("Issue# %d:\n", issue_num);
+        printf("title = %s\n", title);
+        printf("body = %s\n", body);
+      }
 
       int problem_count=0;
       for (int i=0;body[i];i++) {
         if (!strncmp("\r##BREAKS ",&body[i],10)) {
           register_breaks(issue_num,title,&body[i+10]);
-           problem_count++;
+          problem_count++;
         }
       }
       // If no specific problems were registered, then we just need to log the whole
       // issue for now
       if (!problem_count)
         register_breaks(issue_num,title,"Unspecified problem. Please add \\#\\#BREAKS tags via github issue");
+
+      printf("========================================\n\n");
     }
   }
 
-  // Ok, now we have the set of issues and things that the issues broke, so that we can annotate the
-  // test procedure document.
 
   return 0;
+
+  // ======== ======== ======== ========
+  // ======== ======== ======== ========
+  // ======== ======== ======== ========
+
+  // Ok, now we have the set of issues and things that the issues broke, so that we can annotate the
+  // test procedure document.
 
   FILE *of=fopen("testprocedure.tex","w");
   FILE *inf=fopen("test_procedure_in.tex","r");
@@ -273,11 +316,15 @@ int main(int argc,char **argv)
 	  "\\begin{enumerate}\n"
 	  );
 
+  // now parse the input-file that we have in GIT
   line[0]=0; fgets(line,8192,inf);
   while(line[0]) {
+    //
     int queued_problems[MAX_PROBLEMS];
-
+    //
     for(int i=0;line[i];i++) {
+      //
+      // check for "#["
       if (line[i]=='#') {
 	if (line[i+1]=='[') {
 	  // Named problem
@@ -316,35 +363,42 @@ int main(int argc,char **argv)
 	  }
 	}
       }
-      else fprintf(of,"%c",line[i]);
-    }
+      else
+        // current character is not a "#"
+        fprintf(of,"%c",line[i]);
+
+    } // for loop
     
     line[0]=0; fgets(line,8192,inf);
-  }
+
+  } // while loop
 
   fprintf(of,"\\item End of procedure.\n");
   
-  fprintf(of,
-	  "\\end{enumerate}\n"
-	  );
+  fprintf(of,"\\end{enumerate}\n");
 
 
   int missed_count=0;
   for(int i=0;i<problem_count;i++) {
     if (!problem_mentioned[i]) {
+
       if (!missed_count)
-	fprintf(of,"\\section*{Issues not (yet) included in the test procedure}\n");
+        fprintf(of,"\\section*{Issues not (yet) included in the test procedure}\n");
       show_problem_box(of,i);
       missed_count++;
+
     }
   }
   
-  fprintf(of,
-	  "\\end{document}\n"
-	  );
+  fprintf(of,"\\end{document}\n");
   
-  fclose(of); fclose(inf);
+  fclose(of);
+  fclose(inf);
 
+  printf("========================================\n\n");
+  printf("= Making system call "pdflatex"\n\n");
+  printf("========================================\n\n");
+  //
   system("pdflatex testprocedure");
-  
+
 }
