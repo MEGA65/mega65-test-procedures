@@ -108,12 +108,65 @@ int show_problem_box(FILE *f,int problem_number)
 // ======== ======== ======== ========
 // ======== ======== ======== ========
 
+#define TOKEN_LENGTH 41 // 40-chars plus NULL
+
 int main(int argc,char **argv)
 {
+  char git_token[TOKEN_LENGTH];
+  git_token[0] = 0; // set to NULL
 
-  // download the "issues" file from the github-api (only if has not been downloaded before)
+  // get the users token for authenticating with github
+  if( access( "./git-token.txt", F_OK ) != -1 )
+  {
+    printf("Parsing ./git-token.txt\n");
+
+    FILE *f=fopen("./git-token.txt","r");
+    if (f == NULL) {
+      fprintf(stderr,"ERROR: Could not read git-token.txt\n");
+      exit(-1);
+    }
+
+    char line[8192];
+    while (fgets(line, 1024, f) != NULL) {
+      if ( line[0] == '#') {
+        //printf("skipping comment\n");
+      }
+      else if (strlen(line) == TOKEN_LENGTH) {
+        strncpy(git_token, line, TOKEN_LENGTH);
+        //printf("endchar=%d,%c\n", git_token[40],git_token[40]);
+        git_token[40] = 0; // replace CR with NULL
+        printf("Read GIT-TOKEN -> OK\n");
+        break;
+      }
+      else {
+        printf("GIT-TOKEN needs to be 40 chars+NULL\n");
+      }
+
+    } // while
+
+    fclose(f);
+  }
+  else
+  {
+    printf("Please put your Auth-token into ./git-token.txt\n");
+    exit(1);
+  }
+
+  // check the token
+  if (strlen(git_token) == 40) {
+    printf("Got the token \"%s\"\n\n", git_token);
+  }
+  else
+  {
+    printf("Could not find the GIT-TOKEN\n");
+    exit(-1);
+  }
+
+  // ========
+  // download the most recnt "issues" from the github-api (only if has not been downloaded before)
   if( access( "issues.txt", F_OK ) != -1 )
   {
+    // TODO: download if the server copy is newer
     printf("Using local issues.txt\n");
   }
   else
@@ -124,7 +177,9 @@ int main(int argc,char **argv)
     //system("curl -i https://api.github.com/repos/mega65/mega65-core/issues?stat=all > issues.txt");
     //
     // the following will download only the first page of (most recent) issues
-    system("curl -i https://api.github.com/repos/mega65/mega65-core/issues > issues.txt");
+    char cmd[1024];
+    snprintf(cmd,1024,"curl -H \"Authorization: token %s\" -i https://api.github.com/repos/mega65/mega65-core/issues > issues.txt\n", git_token);
+    system(cmd);
   }
 
   // ========
@@ -208,12 +263,12 @@ int main(int argc,char **argv)
 
     if (!isf) {
       // Need to refetch it
-      fprintf(stderr,"Can't open '%s' (or detected previous rate-limit) -- refetching.\n",issue_file);
-      fprintf(stderr,"curl -i https://api.github.com/repos/mega65/mega65-core/issues/%d > %s\n",
-        issue,issue_file);
+      fprintf(stderr,"Can't open '%s' (or detected error in file) -- refetching.\n",issue_file);
       char cmd[1024];
-      snprintf(cmd,1024,"curl -i https://api.github.com/repos/mega65/mega65-core/issues/%d > %s\n",
-        issue,issue_file);
+      printf(  cmd,1024,"curl -H \"Authorization: token %s\" -i https://api.github.com/repos/mega65/mega65-core/issues/%d > %s\n",
+        git_token, issue, issue_file);
+      snprintf(cmd,1024,"curl -H \"Authorization: token %s\" -i https://api.github.com/repos/mega65/mega65-core/issues/%d > %s\n",
+        git_token, issue, issue_file);
       system(cmd);
       isf=fopen(issue_file,"r");
       if (!isf) {
