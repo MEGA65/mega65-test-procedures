@@ -163,11 +163,11 @@ int main(int argc,char **argv)
   }
 
   // ========
-  // download the most recnt "issues" from the github-api (only if has not been downloaded before)
-  if( access( "issues.txt", F_OK ) != -1 )
+  // download the most recent "issues" from the github-api (only if has not been downloaded before)
+  if( access( "issues/issues.txt", F_OK ) != -1 )
   {
     // TODO: download if the server copy is newer
-    printf("Using local issues.txt\n");
+    printf("Using local issues/issues.txt\n");
   }
   else
   {
@@ -178,15 +178,15 @@ int main(int argc,char **argv)
     //
     // the following will download only the first page of (most recent) issues
     char cmd[1024];
-    snprintf(cmd,1024,"curl -H \"Authorization: token %s\" -i https://api.github.com/repos/mega65/mega65-core/issues > issues.txt\n", git_token);
+    snprintf(cmd,1024,"curl -H \"Authorization: token %s\" -i https://api.github.com/repos/mega65/mega65-core/issues > issues/issues.txt\n", git_token);
     system(cmd);
   }
 
   // ========
   // now parse the "issues" file and find the highest issue-number
-  FILE *f=fopen("issues.txt","r");
+  FILE *f=fopen("issues/issues.txt","r");
   if (!f) {
-    fprintf(stderr,"ERROR: Could not read issues.txt.\n");
+    fprintf(stderr,"ERROR: Could not read issues/issues.txt.\n");
     exit(-3);
   }
   char line[8192];
