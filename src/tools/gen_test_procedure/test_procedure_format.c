@@ -7,6 +7,7 @@
 
 int max_issue=0;
 
+// ======== ======== ======== ========
 int parse_string(char *in,char *out)
 {
   int outlen=0;
@@ -31,6 +32,7 @@ int parse_string(char *in,char *out)
   out[outlen]=0;
 }
 
+// ======== ======== ======== ========
 #define MAX_PROBLEMS 8192
 int problem_issues[MAX_PROBLEMS];
 char *problem_titles[MAX_PROBLEMS];
@@ -39,6 +41,8 @@ int problem_mentioned[MAX_PROBLEMS];
 int problem_count=0;
 
 char tex_esc_buff[8192];
+
+// ======== ======== ======== ========
 char *tex_escape(char *in)
 {
   int ol=0;
@@ -57,7 +61,7 @@ char *tex_escape(char *in)
   return tex_esc_buff;
 }
 
-
+// ======== ======== ======== ========
 int register_breaks(int issue,char *title,char *problem)
 {
   int i;
@@ -69,8 +73,6 @@ int register_breaks(int issue,char *title,char *problem)
     problem_msg[i+1]=0;
   }
 
-  
-  
   fprintf(stderr,"Registering problem: #%d : '%s'\n",
 	  issue,problem_msg);
   problem_issues[problem_count]=issue;
@@ -81,6 +83,7 @@ int register_breaks(int issue,char *title,char *problem)
   return 0;
 }
 
+// ======== ======== ======== ========
 int show_problem_box(FILE *f,int problem_number)
 {
   fprintf(f,"\\begin{table}[H]\n"
@@ -115,7 +118,7 @@ int main(int argc,char **argv)
   }
   else
   {
-    printf("Downloading issues from github-api\n");
+    printf("Downloading latest issues from github-api\n");
     //
     // the following will download ALL issues
     //system("curl -i https://api.github.com/repos/mega65/mega65-core/issues?stat=all > issues.txt");
@@ -124,6 +127,7 @@ int main(int argc,char **argv)
     system("curl -i https://api.github.com/repos/mega65/mega65-core/issues > issues.txt");
   }
 
+  // ========
   // now parse the "issues" file and find the highest issue-number
   FILE *f=fopen("issues.txt","r");
   if (!f) {
@@ -164,7 +168,9 @@ int main(int argc,char **argv)
     line[0]=0; fgets(line,1024,f);
   }
 
-  fprintf(stderr,"Largest issue number is %d\n",max_issue);
+  fprintf(stderr,"Largest issue number is %d\n\n",max_issue);
+
+  //return 0;
 
   // ======== ======== ======== ========
   // ======== ======== ======== ========
@@ -176,11 +182,11 @@ int main(int argc,char **argv)
   // - parse the file and pull out important info (ie description and first-post)
   // - check for the existence of ##BREAKS (special tag to indicate how/what to test)
   //
-  // using "200..max_issue" results in at least two ##BREAKS (issue 206 and 215)
   for(int issue=1; issue<=max_issue; issue++) {
 
     char issue_file[1024];
     snprintf(issue_file,1024,"issues/issue%d.txt",issue);
+    printf("======================================== Checking %s\n", issue_file);
     FILE *isf=fopen(issue_file,"r");
 
     if (isf) {
@@ -196,7 +202,7 @@ int main(int argc,char **argv)
         // and the file will be re-fetched below
         fclose(isf);
         isf=NULL;
-        fprintf(stderr,"First line of '%s' does not match HTTP/1.1 200 OK, -> '%s'\n",issue_file, line);
+        fprintf(stderr,"First line of '%s' does not match \"HTTP/1.1 200 OK\", -> '%s'\n",issue_file, line);
       }
     }
 
@@ -258,11 +264,10 @@ int main(int argc,char **argv)
       fclose(isf);
 
       // DEBUG only
-      if (1) printf("Issue #%d:\ntitle = %s\nbody = %s\n",
-        issue_num,title,body);
+      if (0) printf("Issue #%d:\ntitle = %s\nbody = %s\n", issue_num, title,body);
       //
       // DEBUG only
-      if (1) {
+      if (0) {
         printf("\n");
         printf("Issue# %d:\n", issue_num);
         printf("title = %s\n", title);
@@ -281,7 +286,6 @@ int main(int argc,char **argv)
       if (!problem_count)
         register_breaks(issue_num,title,"Unspecified problem. Please add \\#\\#BREAKS tags via github issue");
 
-      printf("========================================\n\n");
     }
   }
 
@@ -396,7 +400,7 @@ int main(int argc,char **argv)
   fclose(inf);
 
   printf("========================================\n\n");
-  printf("= Making system call "pdflatex"\n\n");
+  printf("= Making system call \"pdflatex\"\n\n");
   printf("========================================\n\n");
   //
   system("pdflatex testprocedure");
