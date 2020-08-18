@@ -1,0 +1,6 @@
+# the executable
+test_procedure_format
+
+# the downloaded files from github-api
+issues.txt
+issues/issue*.txt
