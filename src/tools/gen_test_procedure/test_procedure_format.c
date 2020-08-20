@@ -111,34 +111,46 @@ int show_problem_box(FILE *f,int problem_number)
 // ======== ======== ======== ========
 // ======== ======== ======== ========
 
+/*
+Main algorithm is as follows:
+- (Step-1) Download the issue-files from the github-api
+- (Step-2) Parse through the downloaded issue-files and build up a data-structure in memory
+- (Step-3) Generate a TEX-file consisting from IN-put-file and data-structure
+- (Step-4) Generate the PDF using a system call to pdflatex
+*/
+
 #define TOKEN_LENGTH 41 // 40-chars plus NULL
 
 int main(int argc,char **argv)
 {
+  // ======== ======== ======== ========
+  // Step-1, Download the issue-files from the github-api
+
   char git_token[TOKEN_LENGTH];
-  git_token[0] = 0; // set to NULL
+  git_token[0] = 0; // set to empty string
 
   // get the users token for authenticating with github
   if( access( "./git-token.txt", F_OK ) != -1 )
   {
     printf("Parsing ./git-token.txt\n");
-
-    FILE *f=fopen("./git-token.txt","r");
-    if (f == NULL) {
+    //
+    FILE *gtf=fopen("./git-token.txt","r");
+    if (gtf == NULL) {
       fprintf(stderr,"ERROR: Could not read git-token.txt\n");
       exit(-1);
     }
 
     char line[8192];
-    while (fgets(line, 1024, f) != NULL) {
+    while (fgets(line, 1024, gtf) != NULL) {
+      // we allow comments in this git-token file
       if ( line[0] == '#') {
         //printf("skipping comment\n");
       }
       else if (strlen(line) == TOKEN_LENGTH) {
         strncpy(git_token, line, TOKEN_LENGTH);
         //printf("endchar=%d,%c\n", git_token[40],git_token[40]);
-        git_token[40] = 0; // replace CR with NULL
-        printf("Read GIT-TOKEN -> OK\n");
+        git_token[40] = 0; // replace the 41th char (a CR) with NULL
+        printf("Read somethig that is 40 chars -> OK\n");
         break;
       }
       else {
@@ -147,22 +159,22 @@ int main(int argc,char **argv)
 
     } // while
 
-    fclose(f);
+    fclose(gtf);
   }
   else
   {
-    printf("Please put your Auth-token into ./git-token.txt\n");
+    printf("ERROR, Please put your Auth-token into ./git-token.txt\n");
     exit(1);
   }
 
   // check the token
-  if (strlen(git_token) == 40) {
-    printf("Got the token \"%s\"\n\n", git_token);
+  if (strlen(git_token) == 0) {
+    printf("ERROR, Could not find the GIT-TOKEN length 40 chars+CR\n");
+    exit(-1);
   }
   else
   {
-    printf("Could not find the GIT-TOKEN\n");
-    exit(-1);
+    printf("Got the token \"%s\"\n\n", git_token);
   }
 
   // ========
@@ -187,6 +199,7 @@ int main(int argc,char **argv)
 
   // ========
   // now parse the "issues" file and find the highest issue-number
+  // This is so we know how many issues there are.
   FILE *f=fopen("issues/issues.txt","r");
   if (!f) {
     fprintf(stderr,"ERROR: Could not read issues/issues.txt.\n");
@@ -230,9 +243,12 @@ int main(int argc,char **argv)
 
   //return 0;
 
+
+
   // ======== ======== ======== ========
   // ======== ======== ======== ========
   // ======== ======== ======== ========
+
 
 
   // Now, iterate through issues and:
@@ -240,15 +256,21 @@ int main(int argc,char **argv)
   // - parse the file and pull out important info (ie description and first-post)
   // - check for the existence of ##BREAKS (special tag to indicate how/what to test)
   //
+  char cmd[1024]; // char buffer for system calls
+  char issue_file[1024]; // char buffer for the filename
+  FILE *isf=NULL; // issue file
+  //
+  // First, lets download the issue-file if nessessary
+  //
   for(int issue=1; issue<=max_issue; issue++) {
-
-    char issue_file[1024];
+    //
     snprintf(issue_file,1024,"issues/issue%d.txt",issue);
     printf("======================================== Checking %s\n", issue_file);
-    FILE *isf=fopen(issue_file,"r");
-
+    //
+    isf = fopen(issue_file,"r");
+    //
     if (isf) {
-      // file exists, but we need to check its valid
+      // file exists, but we need to check its valid by the first line being "HTTP..."
       char line[1024]; line[0]=0;
       fgets(line,1024,isf);
       // remove trailling whitespace/CR
@@ -267,19 +289,34 @@ int main(int argc,char **argv)
     if (!isf) {
       // Need to refetch it
       fprintf(stderr,"Can't open '%s' (or detected error in file) -- refetching.\n",issue_file);
-      char cmd[1024];
+
       printf(  cmd,1024,"curl -H \"Authorization: token %s\" -i https://api.github.com/repos/mega65/mega65-core/issues/%d > %s\n",
         git_token, issue, issue_file);
       snprintf(cmd,1024,"curl -H \"Authorization: token %s\" -i https://api.github.com/repos/mega65/mega65-core/issues/%d > %s\n",
         git_token, issue, issue_file);
       system(cmd);
+      // check it worked
       isf=fopen(issue_file,"r");
       if (!isf) {
         fprintf(stderr,"WARNING: Could not fetch issue #%d\n",issue);
       }
+      fclose(isf);
+      isf = NULL;
     }
 
+  } // for (1 .. max_issue)
+
+  //return 0;
+
+  // ======== ======== ======== ========
+  // Step-2, Parse through the downloaded issue files and build up a data-structure in memory
+  //
+  for(int issue=1; issue<=max_issue; issue++) {
     // Ok, have file, parse it.
+    snprintf(issue_file,1024,"issues/issue%d.txt",issue);
+    printf("== Parsing %s\n", issue_file);
+    //
+    isf = fopen(issue_file,"r");
     if (isf) {
 
       int issue_num;
@@ -345,18 +382,23 @@ int main(int argc,char **argv)
         register_breaks(issue_num,title,"Unspecified problem. Please add \\#\\#BREAKS tags via github issue");
 
     }
+
+
   }
 
 
-  return 0;
+  //return 0;
 
+  // ======== ======== ======== ========
+  // Step-3, Generate a TEX-file consisting from IN-put-file and data-structure
+  //
   // ======== ======== ======== ========
   // ======== ======== ======== ========
   // ======== ======== ======== ========
 
-  // Ok, now we have the set of issues and things that the issues broke, so that we can annotate the
-  // test procedure document.
-
+  // Ok, now we have the set of issues and things that the issues broke,
+  // so that we can annotate the test procedure document.
+  //
   FILE *of=fopen("testprocedure.tex","w");
   FILE *inf=fopen("test_procedure_in.tex","r");
   if (!of||!inf) {
@@ -457,10 +499,15 @@ int main(int argc,char **argv)
   fclose(of);
   fclose(inf);
 
-  printf("========================================\n\n");
-  printf("= Making system call \"pdflatex\"\n\n");
+  // ======== ======== ======== ========
+  // Step-4, Generate the PDF using a system call to pdflatex
+  //
+  printf("\n");
+  printf("========================================\n");
+  printf("= Making system call \"pdflatex\"\n");
   printf("========================================\n\n");
   //
   system("pdflatex testprocedure");
+
 
 }
