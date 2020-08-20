@@ -265,7 +265,7 @@ int main(int argc,char **argv)
   for(int issue=1; issue<=max_issue; issue++) {
     //
     snprintf(issue_file,1024,"issues/issue%d.txt",issue);
-    printf("======================================== Checking %s\n", issue_file);
+    printf("== Checking %s", issue_file);
     //
     isf = fopen(issue_file,"r");
     //
@@ -282,9 +282,97 @@ int main(int argc,char **argv)
         // and the file will be re-fetched below
         fclose(isf);
         isf=NULL;
-        fprintf(stderr,"First line of '%s' does not match \"HTTP/1.1 200 OK\", -> '%s'\n",issue_file, line);
+        fprintf(stderr,"\nFirst line of '%s' does not match \"HTTP/1.1 200 OK\", -> '%s'\n",issue_file, line);
       }
-    }
+      //
+      // see if there is a newer version of this file on the server
+      // - 1), find the datestamp of the local-file
+      // - 2), ask server for the file if the server-file is newer
+      // - 3), if server-file was newer, replace the old file with the newer file.
+      // - 4), if server file was same, ie has not been modified since, throw away the report.
+      //
+      //== 1)
+      char local_timestamp[1024];
+      local_timestamp[0] = 0;
+      while( line[0] != 0 ) {
+        // compare every LINE and when a match is found, get the timestamp
+        //sscanf(line,"Last-Modified: %s\n",local_timestamp);
+        fgets(line,1024,isf);
+        char *pch = strstr(line, "Last-Modified:"); // strstr returns NULL if not found
+        if (pch) {
+          // yes, this line contains the datestamp, ie
+          // Last-Modified: Sun, 16 Aug 2020 10:34:49 GMT<CR><LF><\0>
+          // 012345678901234567890
+          // 000000000011111111112
+          // we want from line[15] onwards
+          bcopy(&line[15], &local_timestamp[0], strlen(line));
+          // and remove the trailling CR/LF
+          local_timestamp[ strlen(local_timestamp)-2 ] = 0;
+          break;
+        }
+
+      }
+
+      if (local_timestamp[0] == 0) {
+        // didnt find the timestamp, something went wrong, -> refetch later by setting "isf" to NULL
+        fclose(isf);
+        isf=NULL;
+        fprintf(stderr,"\nCouldnt find timstamp (Last-Modified:) in '%s', -> refetch\n",issue_file);
+      }
+      //== 2)
+      snprintf(cmd, 1024, "curl --silent -H \"Authorization: token %s\" -H \"If-Modified-Since: %s\" -i https://api.github.com/repos/mega65/mega65-core/issues/%d > api-report.txt\n",
+        git_token, local_timestamp, issue);
+      //printf("%s\n", cmd);
+      system(cmd);
+      //== 3)
+      FILE *dloaded_file=fopen("api-report.txt","r");
+      if (dloaded_file) {
+        // something downloaded, lets check the first line of whatever was downloaded:
+        // - "HTTP/1.1 200 OK"           if a newer file was downloaded, or
+        // - "HTTP/1.1 304 Not Modified" if the local file is the same as the server file
+        // so lets check the first line of the downloaded file
+        char line[1024]; line[0]=0;
+        fgets(line,1024,dloaded_file);
+        // remove trailling whitespace/CR
+        while(line[0]&&(line[strlen(line)-1]<' '))
+          line[strlen(line)-1]=0;
+        //
+        fclose(dloaded_file); // dont need this opened anymore, and we may move/delete soon
+        dloaded_file = NULL;
+        //
+        if ( strcmp(line,"HTTP/1.1 200 OK") == 0 ) {
+          // yes, a newer file was downloaded, so replace the old file with the newly downloaded issue-file
+          //== 3)
+          printf(" -> downloaded updates, local file is now up-to-date\n");
+          snprintf(  cmd,1024,"mv api-report.txt %s\n", issue_file);
+          //printf("%s", cmd);
+          system(cmd);
+        }
+        else if ( strcmp(line,"HTTP/1.1 304 Not Modified") == 0 ) {
+          // no, the local-file is the same age as the server-file
+          //== 4)
+          printf(" -> local file is up-to-date\n");
+          snprintf(cmd, 1024, "rm api-report.txt\n");
+          //printf("%s", cmd);
+          system(cmd);
+        }
+        else {
+          printf("\nERROR, did not understand response from server after checking the first line\n");
+        }
+
+      }
+      else {
+          printf("ERROR, could not open \"api-report.txt\".\n");
+      }
+
+      //
+      // At this stage,
+      // we should have the latest/updated version of the issue-file,
+      // or we dont have the file at all and so needs fetching (see below).
+      //
+
+    } // if
+
 
     if (!isf) {
       // Need to refetch it
