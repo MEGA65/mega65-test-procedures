@@ -344,8 +344,11 @@ int main(int argc,char **argv)
           // yes, a newer file was downloaded, so replace the old file with the newly downloaded issue-file
           //== 3)
           printf(" -> downloaded updates, local file is now up-to-date\n");
-          snprintf(  cmd,1024,"mv api-report.txt %s\n", issue_file);
-          //printf("%s", cmd);
+          snprintf(cmd, 1024, "diff %s api-report.txt\n", issue_file);
+          printf("%s", cmd);
+          system(cmd);
+          snprintf(cmd, 1024, "mv api-report.txt %s\n", issue_file);
+          printf("%s", cmd);
           system(cmd);
         }
         else if ( strcmp(line,"HTTP/1.1 304 Not Modified") == 0 ) {
@@ -358,6 +361,7 @@ int main(int argc,char **argv)
         }
         else {
           printf("\nERROR, did not understand response from server after checking the first line\n");
+          printf("Response was \"%s\"\n", line);
         }
 
       }
