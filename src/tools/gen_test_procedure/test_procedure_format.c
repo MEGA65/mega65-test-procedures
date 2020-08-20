@@ -8,7 +8,7 @@
 int max_issue=0;
 
 // ======== ======== ======== ========
-int parse_string(char *in,char *out)
+void parse_string(char *in,char *out)
 {
   int outlen=0;
   for(int i=0;in[i];i++) {
@@ -21,14 +21,17 @@ int parse_string(char *in,char *out)
       case '\"':	out[outlen++]='\"'; break;
       case '\'':	out[outlen++]='\''; break;
       default:
-	fprintf(stderr,"WARNING: Unknown \\ escape \\%c\n",in[i]);
-	i--;
-	out[outlen++]='\\';
-      }
+        fprintf(stderr,"WARNING: Unknown \\ escape \\%c\n",in[i]);
+        i--;
+        out[outlen++]='\\';
+      } // switch
+    //
     } else {
-	out[outlen++]=in[i];
-    }
-  }
+      out[outlen++]=in[i];
+    } // if
+  //
+  } // for
+
   out[outlen]=0;
 }
 
