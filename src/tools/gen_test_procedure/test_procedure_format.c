@@ -124,12 +124,50 @@ Main algorithm is as follows:
 int main(int argc,char **argv)
 {
   // ======== ======== ======== ========
+  // Step-0, Parse CLI options
+  int min_req_issue = -1;
+  int max_req_issue = -1;
+  if (argc > 1) {
+    if ( strstr(argv[1], "-h") ||
+         strstr(argv[1], "--h") ) {
+      printf("Usage: %s [d=x..y]\n", argv[0]);
+      printf(" where: only issues 'x' to 'y' are downloaded,\n");
+      printf("        and 'x' > 0, and 'x' <= 'y'.\n");
+      printf("NOTE: use 'x'=0, 'y'=0 to prevent downloading.\n");
+      return 0;
+    }
+    else if ( strstr(argv[1], "d=") ) {
+      sscanf(argv[1], "d=%d..%d", &min_req_issue, &max_req_issue);
+      //
+      // check values supplied
+      if ( (min_req_issue==0) && (max_req_issue==0) ){
+        printf("Detected request to NOT download issue updates.\n");
+      }
+      else if ( (min_req_issue > max_req_issue) || (min_req_issue < 1) ) {
+        printf("ERROR, 'x' needs to be <= 'y'  AND  'x' >= 0.\n");
+        return -1;
+      }
+    }
+    else {
+      printf("invalid arg: %s\n", argv[1]);
+      return -1;
+    }
+  } // if
+
+  //printf("argc=%d, argv=%s, min=%d, max=%d\n", argc, argv[1], min_req_issue, max_req_issue);
+
+  //return 0;
+
+  // ======== ======== ======== ========
   // Step-1, Download the issue-files from the github-api
 
   char git_token[TOKEN_LENGTH];
   git_token[0] = 0; // set to empty string
 
   // get the users token for authenticating with github
+  //
+  // this is not really required when downloading is not required (argv[1]="d=0..0"),
+  // but lets enforce requiring a git-token for now
   if( access( "./git-token.txt", F_OK ) != -1 )
   {
     printf("Parsing ./git-token.txt\n");
@@ -179,9 +217,10 @@ int main(int argc,char **argv)
 
   // ========
   // download the most recent "issues" from the github-api (only if has not been downloaded before)
+  // This is so we can count how many issues there are.
   if( access( "issues/issues.txt", F_OK ) != -1 )
   {
-    // TODO: download if the server copy is newer
+    // TODO: check first, then download if the server copy is newer
     printf("Using local issues/issues.txt\n");
   }
   else
@@ -262,7 +301,12 @@ int main(int argc,char **argv)
   //
   // First, lets download the issue-file if nessessary
   //
-  for(int issue=1; issue<=max_issue; issue++) {
+  // except for when "NOT download" has been requested (argv[1]="d=0..0")
+  if ( (min_req_issue == 0) && (max_req_issue == 0) ) {
+    max_req_issue=-1; // this will prevent the 'for'-loop below from iterating
+    printf("NOT downloading as requested\n");
+  }
+  for(int issue=min_req_issue; issue<=max_req_issue; issue++) {
     //
     snprintf(issue_file,1024,"issues/issue%d.txt",issue);
     printf("== Checking %s", issue_file);
