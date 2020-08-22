@@ -304,8 +304,20 @@ int main(int argc,char **argv)
   // except for when "NOT download" has been requested (argv[1]="d=0..0")
   if ( (min_req_issue == 0) && (max_req_issue == 0) ) {
     max_req_issue=-1; // this will prevent the 'for'-loop below from iterating
+                      // ie for (0..-1)
     printf("NOT downloading as requested\n");
   }
+  else if ( (min_req_issue == -1) && (max_req_issue == -1) ) {
+    // ie no CLI arg passed as these were the INIT values,
+    // so assume to process all the available issues
+    min_req_issue=1;
+    max_req_issue=max_issue;
+    printf("Downloading/Updating ALL issues\n");
+  }
+  else {
+    // just use whatever the CLI-code has...
+  }
+  //
   for(int issue=min_req_issue; issue<=max_req_issue; issue++) {
     //
     snprintf(issue_file,1024,"issues/issue%d.txt",issue);
