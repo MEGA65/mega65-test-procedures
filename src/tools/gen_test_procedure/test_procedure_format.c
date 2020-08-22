@@ -544,17 +544,17 @@ int main(int argc,char **argv)
 
   // Output Latex header
   fprintf(of,
-	  "\\documentclass{article}\n"
-	  "\n"
-	  "\\title{MEGA65 Test Procedure}\n"
-	  // XXX include git commit ID in a \\abstract{} block?
-	  "\\usepackage{float}\n"
-	  "\\usepackage{hyperref}\n"
-	  "\\begin{document}\n"
-	  "\\maketitle\n"
-	  "\\section*{Test Procedure}\n"
-	  "\\begin{enumerate}\n"
-	  );
+    "\\documentclass{article}\n"
+    "\n"
+    "\\title{MEGA65 Test Procedure}\n"
+    // XXX include git commit ID in a \\abstract{} block?
+    "\\usepackage{float}\n"
+    "\\usepackage{hyperref}\n"
+    "\\begin{document}\n"
+    "\\maketitle\n"
+    "\\section*{Test Procedure}\n"
+    "\\begin{enumerate}\n"
+    );
 
   // now parse the input-file that we have in GIT
   line[0]=0; fgets(line,8192,inf);
@@ -566,42 +566,42 @@ int main(int argc,char **argv)
       //
       // check for "#["
       if (line[i]=='#') {
-	if (line[i+1]=='[') {
-	  // Named problem
-	  char *p=&line[i+2];
-	  int len=0;
-	  int found=0;
-	  while(p[len]&&p[len]!=']') len++;
-	  printf("named problem at '%s', len=%d\n",
-		 p,len);
-	  for(int j=0;j<problem_count;j++) {
-	    if (!strncmp(problem_descriptions[j],p,len)) {
-	      show_problem_box(of,j);
-	      found=1;
-	    }
-	  }
-	  if (!found) {
-	    int z=p[len]; p[len]=0;
-	    fprintf(of,"ERROR: Problem ``%s'' does not appear in issues. Please check spelling and punctuation are exactly matching the text in the \\#\\#BREAKS directive in the issue body.\n",p);
-	    p[len]=z;
-	  }
-	  i+=1+len+1;	  
-	  
-	} else {
-	  // Issue number: Show all problems that the issue references
-	  char num[16];
-	  int nlen=0;
-	  while(isdigit(line[i+1+nlen])&&(nlen<16)) {
-	    num[nlen++]=line[i+1+nlen];	    
-	  }
-	  i+=nlen;
-	  num[nlen]=0;
-	  int issue_num=atoi(num);
-	  for(int j=0;j<problem_count;j++) {
-	    if (problem_issues[j]==issue_num)
-	      show_problem_box(of,j);
-	  }
-	}
+        if (line[i+1]=='[') {
+          // Named problem
+          char *p=&line[i+2];
+          int len=0;
+          int found=0;
+          while(p[len]&&p[len]!=']') len++;
+          printf("named problem at '%s', len=%d\n",p,len);
+          for(int j=0;j<problem_count;j++) {
+            if (!strncmp(problem_descriptions[j],p,len)) {
+              show_problem_box(of,j);
+              found=1;
+            }
+          }
+          if (!found) {
+            int z=p[len]; p[len]=0;
+            fprintf(of,"ERROR: Problem ``%s'' does not appear in issues. Please check spelling and punctuation are exactly matching the text in the \\#\\#BREAKS directive in the issue body.\n",p);
+            p[len]=z;
+          }
+          i+=1+len+1;
+
+        } else {
+
+          // Issue number: Show all problems that the issue references
+          char num[16];
+          int nlen=0;
+          while(isdigit(line[i+1+nlen])&&(nlen<16)) {
+            num[nlen++]=line[i+1+nlen];
+          }
+          i+=nlen;
+          num[nlen]=0;
+          int issue_num=atoi(num);
+          for(int j=0;j<problem_count;j++) {
+            if (problem_issues[j]==issue_num)
+              show_problem_box(of,j);
+          }
+        }
       }
       else
         // current character is not a "#"
@@ -614,7 +614,7 @@ int main(int argc,char **argv)
   } // while loop
 
   fprintf(of,"\\item End of procedure.\n");
-  
+
   fprintf(of,"\\end{enumerate}\n");
 
 
