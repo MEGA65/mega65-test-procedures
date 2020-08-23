@@ -4,3 +4,5 @@ test_procedure_format
 # the downloaded files from github-api
 issues/issues.txt
 issues/issue*.txt
+api-report.txt
+
