@@ -536,10 +536,17 @@ int main(int argc,char **argv)
         register_breaks(issue_num,title,"Unspecified problem. Please add \\#\\#BREAKS tags via github issue");
 
     }
+    else {
+      printf("ERROR, could not open %s\n", issue_file);
+    }
 
 
-  }
+  } // for
 
+  // generate some statistics
+  printf("\n");
+  printf("problem_count=%d\n", problem_count);
+  //
 
   //return 0;
 
