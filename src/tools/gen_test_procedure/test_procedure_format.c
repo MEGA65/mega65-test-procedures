@@ -10,20 +10,26 @@ int max_issue=0;
 // ======== ======== ======== ========
 void parse_string(char *in,char *out)
 {
+  // This function takes two pointers to strings.
+  // Basically this function converts the multi-character-based escape-sequences
+  // into byte-based escape-sequences
+  // This effectively causes 'out' to be shorter in length than 'in'
   int outlen=0;
   for(int i=0;in[i];i++) {
     if (in[i]=='\\') {
+      // the current char is a 'slash'
       i++;
+      // what is the next char?
       switch(in[i]) {
-      case 'r':	out[outlen++]='\r'; break;
-      case 'n':	out[outlen++]='\r'; break;
-      case 't':	out[outlen++]='\t'; break;
-      case '\"':	out[outlen++]='\"'; break;
-      case '\'':	out[outlen++]='\''; break;
-      default:
-        fprintf(stderr,"WARNING: Unknown \\ escape \\%c\n",in[i]);
-        i--;
-        out[outlen++]='\\';
+        case 'r':  out[outlen++]='\r'; break;
+        case 'n':  out[outlen++]='\r'; break;
+        case 't':  out[outlen++]='\t'; break;
+        case '\"': out[outlen++]='\"'; break;
+        case '\'': out[outlen++]='\''; break;
+        default:
+          fprintf(stderr,"WARNING: Unknown escape-sequence \\%c at char-position %d\n",in[i], i);
+          i--;
+          out[outlen++]='\\';
       } // switch
     //
     } else {
@@ -32,16 +38,16 @@ void parse_string(char *in,char *out)
   //
   } // for
 
-  out[outlen]=0;
+  out[outlen]=0; // terminate the output string
 }
 
 // ======== ======== ======== ========
 #define MAX_PROBLEMS 8192
-int problem_issues[MAX_PROBLEMS];
+int   problem_issues[MAX_PROBLEMS];
 char *problem_titles[MAX_PROBLEMS];
 char *problem_descriptions[MAX_PROBLEMS];
-int problem_mentioned[MAX_PROBLEMS];
-int problem_count=0;
+int   problem_mentioned[MAX_PROBLEMS];
+int   problem_count=0;
 
 char tex_esc_buff[8192];
 
@@ -76,10 +82,9 @@ int register_breaks(int issue,char *title,char *problem)
     problem_msg[i+1]=0;
   }
 
-  fprintf(stderr,"Registering problem: #%d : '%s'\n",
-	  issue,problem_msg);
-  problem_issues[problem_count]=issue;
-  problem_titles[problem_count]=strdup(tex_escape(title));
+  fprintf(stderr,"Registering problem: #%d : '%s'\n", issue,problem_msg);
+  problem_issues[      problem_count]=issue;
+  problem_titles[      problem_count]=strdup(tex_escape(title));
   problem_descriptions[problem_count]=strdup(tex_escape(problem_msg));
   problem_count++;
   
