@@ -26,6 +26,7 @@ void parse_string(char *in,char *out)
         case 't':  out[outlen++]='\t'; break;
         case '\"': out[outlen++]='\"'; break;
         case '\'': out[outlen++]='\''; break;
+        case '\\': out[outlen++]='\\'; break;
         default:
           fprintf(stderr,"WARNING: Unknown escape-sequence \\%c at char-position %d\n",in[i], i);
           i--;
